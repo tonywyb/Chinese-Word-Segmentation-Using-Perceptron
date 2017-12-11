@@ -22,6 +22,7 @@
 ```
 $ python ../preprocess.py train.txt
 $ python ../preprocess.py test.txt
+$ python ../preprocess.py test.answer.txt
 ```
 
 2. 进入上述5个代码文件夹，在linux终端键入以下命令，可以在当前文件夹下得到分词结果，存放在mytest.answer.txt中
