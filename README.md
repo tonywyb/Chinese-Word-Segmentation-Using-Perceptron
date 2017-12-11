@@ -39,4 +39,4 @@ $ perl ../benchmark/score ../perl_word_list.txt ../test.answer.txt mytest.answer
 ```
 $ chmod u+x run.sh
 $ ./run.sh
-```
+```# Chinese-Word-Segmentation-Using-Perceptron
