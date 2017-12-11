@@ -210,7 +210,7 @@ class Train:
             sentence_lable.append(None) 
             self.words.append(sentence_words)
             self.lable.append(sentence_lable) 
-            assert sentence_words != sentence_lable
+            assert len(sentence_words) == len(sentence_lable), "word num != lable num"
             self.debuger.debug("sentence", cnt, "getting word_lis and lable")
             cnt += 1
     
