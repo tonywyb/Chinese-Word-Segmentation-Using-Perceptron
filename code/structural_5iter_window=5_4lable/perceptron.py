@@ -34,6 +34,15 @@ class Perceptron:
                 max_index = i
         return lable[max_index]
 
+    def update_arc_weights(self, std_res, our_res, delta):
+        for i, j in zip(std_res, our_res):
+            if i == j:
+                continue
+            self.weight[i] += 1
+            delta[i] += 1
+            self.weight[j] -= 1
+            delta[j] -= 1
+
     def update_weights(self, feature, right_res, wrong_res, delta):
         if feature[right_res] == feature[wrong_res]:
             return
@@ -54,6 +63,13 @@ class Perceptron:
         return res
 
     def viterbi(self, sentence_feature):
+        arc_feature = [['b_b', 'm_b', 'e_b', 's_b'],\
+        ['b_m', 'm_m', 'e_m', 's_m'], ['b_e', 'm_e', 'e_e', 's_e'],\
+        ['b_s', 'm_s', 'e_s', 's_s']]
+        pre_arc_feature = [['b_b', 'b_m', 'b_e', 'b_s'],\
+        ['m_b', 'm_m', 'm_e', 'm_s'], ['e_b', 'e_m', 'e_e', 'e_s'],\
+        ['s_b', 's_m', 's_e', 's_s']]
+        lables = ['b', 'm', 'e', 's']
         cur_sentence_score = []
         pre_word_index = []
         for i in range(len(sentence_feature)):
@@ -63,15 +79,23 @@ class Perceptron:
                 cur_sentence_score[i].append(0)
                 pre_word_index[i].append(0)
         for k in range(4):
-            cur_sentence_score[0][k] = self.dot(sentence_feature[0])[k]
+            tag = '*_' + lables[k]
+            cur_sentence_score[0][k] = self.dot(sentence_feature[0])[k] + \
+            self.weight[tag]
             pre_word_index[0][k] = -1
         for i in range(1, len(sentence_feature)):
-            pre_res = max(cur_sentence_score[i - 1])
             for k in range(4):
-                pre_word_index[i][k] = cur_sentence_score[i - 1].index(pre_res)
-                cur_sentence_score[i][k] = pre_res + self.dot(sentence_feature[i])[k]
-        final_index = cur_sentence_score[len(sentence_feature) - 1]\
-        .index(max(cur_sentence_score[len(sentence_feature) - 1]))
+                _max = -100000
+                _max_idx = -1
+                for l in range(4):
+                    tmp = self.weight[pre_arc_feature[l][k]] + cur_sentence_score[i - 1][l]
+                    if tmp > _max:
+                        _max = tmp
+                        _max_idx = l
+                pre_word_index[i][k] = _max_idx
+                cur_sentence_score[i][k] = _max + self.dot(sentence_feature[i])[k]
+        final_res = max(cur_sentence_score[len(sentence_feature) - 1])
+        final_index = cur_sentence_score[len(sentence_feature) - 1].index(final_res)
         lables = { 0:'b', 1:'m', 2:'e', 3:'s' }
         res = []
         cur_index = len(sentence_feature) - 1
@@ -157,6 +181,7 @@ class Test:
             sentence_res += self.p.viterbi(self.feature[i])
             sentence_res.append(None)
             self.res.append(sentence_res)
+        print self.res
 
     def write_dest_file(self):
         f = codecs.open(self.dest_path, "w", "utf-8")
@@ -186,10 +211,10 @@ class Train:
             sentence_lable = []
             vocab = line.strip().split()
             sentence_words.append('B')
-            sentence_lable.append(None)
-            if len(vocab) == 0:
+            sentence_lable.append('*')
+	    if len(vocab) == 0:
 		continue
-	    for v in vocab:
+            for v in vocab:
                 if len(v) == 1:
                     sentence_lable.append('s')
                     sentence_words.append(v)
@@ -207,10 +232,10 @@ class Train:
                     sentence_lable.append('e')
                     sentence_words.append(v[-1])                                      
             sentence_words.append('E')
-            sentence_lable.append(None) 
+            sentence_lable.append('*') 
             self.words.append(sentence_words)
             self.lable.append(sentence_lable) 
-            assert len(sentence_words) == len(sentence_lable), "word num != lable num"
+            assert sentence_words != sentence_lable
             self.debuger.debug("sentence", cnt, "getting word_lis and lable")
             cnt += 1
     
@@ -266,13 +291,25 @@ class Train:
                 std_res = self.lable[i][1:-1]
                 assert len(our_res) == len(std_res)
                 trans = { 'b':0, 'm':1, 'e':2, 's':3 }
+                sentence_delta = defaultdict(int)
+                std_arc = []
+                our_arc = []
+                for l in range(1, len(self.lable[i])):
+                    std_arc.append(self.lable[i][l - 1] + '_' + self.lable[i][l])
+                our_arc.append('*_' + our_res[0])
+                for l in range(len(our_res) - 1):
+                    our_arc.append(our_res[l] + '_' + our_res[l + 1])
+                our_arc.append(our_res[len(our_res) - 1] + '_*')
+                assert len(our_arc) == len(std_arc), 'the length of our_arc is not equal to std_arc'
+                self.p.update_arc_weights(std_arc, our_arc, sentence_delta)
+
                 for l in range(len(our_res)):
                     our_res[l] = trans[our_res[l]]
                 for l in range(len(std_res)):
                     std_res[l] = trans[std_res[l]]
-                sentence_delta = defaultdict(int)
                 for l in range(len(our_res)):
                     self.p.update_weights(self.feature[i][l], std_res[l], our_res[l], sentence_delta)
+                
                 self.p.weight_delta.append(sentence_delta)
                     
         average_weight = defaultdict(int)
@@ -285,7 +322,7 @@ class Train:
 
 if __name__ == "__main__":
     p = Perceptron()
-    train_model = Train(sys.argv[1], p)
+    train_model = Train("../pro_train.txt", p)
     print "train_model built!"
     train_model.get_words_and_lables()
     print "get words and lables from train_model!"
@@ -293,7 +330,7 @@ if __name__ == "__main__":
     print "extract feature from train_model!"
     train_model.train(5)
     print "train phase complete"
-    test_model = Test(sys.argv[2], "mytest.answer.txt", p)
+    test_model = Test("../pro_test.txt", "mytest.answer.txt", p)
     print "test_model built!"
     test_model.get_words()
     print "get test words!"
